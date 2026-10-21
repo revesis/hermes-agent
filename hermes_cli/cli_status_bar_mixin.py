@@ -20,6 +20,23 @@ from typing import Any, Dict, Optional
 _SB = "class:status-bar"
 _DIM = "class:status-bar-dim"
 _STRONG = "class:status-bar-strong"
+
+
+def _g(key: str, fallback: str) -> str:
+    """Active skin's marker for a status-bar element, or *fallback*.
+
+    An emoji-free skin overrides these through its ``glyphs:`` block (``agent``,
+    ``separator``, ``separator_dot``, ``bar_filled``, ``bar_empty``, ``latency``, ``tps``,
+    ``compressions``, ``bg_tasks``, ``bg_processes``, ``subagents``, ``git_branch``,
+    ``total_tokens``). Bar glyphs must be a single character to keep the width math honest.
+    """
+    try:
+        from hermes_cli.skin_engine import get_active_glyph
+        return get_active_glyph(key, fallback)
+    except Exception:
+        return fallback
+
+
 _AGENT_COUNTERS = (
     "session_input_tokens", "session_output_tokens", "session_cache_read_tokens",
     "session_cache_write_tokens", "session_prompt_tokens", "session_completion_tokens",
@@ -150,7 +167,8 @@ class CLIStatusBarMixin:
     def _build_context_bar(self, percent_used: Optional[int], width: int = 10) -> str:
         safe_percent = max(0, min(100, percent_used or 0))
         filled = round((safe_percent / 100) * width)
-        return f"[{('█' * filled) + ('░' * max(0, width - filled))}]"
+        filled_glyph, empty_glyph = _g("bar_filled", "█"), _g("bar_empty", "░")
+        return f"[{(filled_glyph * filled) + (empty_glyph * max(0, width - filled))}]"
 
     @staticmethod
     def _format_prompt_elapsed(
@@ -1045,9 +1063,9 @@ class CLIStatusBarMixin:
 
         if _ok("model"):
             if styled:
-                segs.append([(_SB, " ☤ "), (_STRONG, model_short)])
+                segs.append([(_SB, f" {_g('agent', '☤')} "), (_STRONG, model_short)])
             else:
-                segs.append([("", f"☤ {model_short}")])
+                segs.append([("", f"{_g('agent', '☤')} {model_short}")])
         narrow, wide = width < 52, width >= 76
         if narrow:
             # Narrow bars put duration ahead of the goal segment; the other tiers reverse it.
@@ -1078,19 +1096,21 @@ class CLIStatusBarMixin:
                 add("cache_hit", self._cache_hit_rate_style(cache[0]), cache[1])
             if wide:
                 for name, key, glyph in (
-                    ("latency", "avg_latency_label", "◷"), ("tps", "avg_velocity_label", "↑")):
+                    ("latency", "avg_latency_label", _g("latency", "◷")),
+                    ("tps", "avg_velocity_label", _g("tps", "↑"))):
                     label = snapshot.get(key) or ""
                     if label:
                         add(name, _DIM, f"{glyph} {label}")
-            add_count("compressions", "compressions", "🗜️", self._compression_count_style)
-            add_count("bg_tasks", "active_background_tasks", "▶")
-            add_count("bg_processes", "active_background_processes", "⚙")
-            add_count("bg_subagents", "active_background_subagents", "⛓")
+            add_count("compressions", "compressions", _g("compressions", "🗜️"),
+                      self._compression_count_style)
+            add_count("bg_tasks", "active_background_tasks", _g("bg_tasks", "▶"))
+            add_count("bg_processes", "active_background_processes", _g("bg_processes", "⚙"))
+            add_count("bg_subagents", "active_background_subagents", _g("subagents", "⛓"))
         if goal_segment:
             add("goal", _STRONG, goal_segment)
         git_branch = snapshot.get("git_branch") or ""
         if git_branch:
-            add("git_branch", _DIM, f"⎇ {git_branch}")
+            add("git_branch", _DIM, f"{_g('git_branch', '⎇')} {git_branch}")
         if not narrow:
             add("duration", _DIM, duration_label)
         if wide:
@@ -1106,7 +1126,7 @@ class CLIStatusBarMixin:
             # Session token total (Σ) — opt-in only via an explicit fields list.
             total_tokens = snapshot.get("session_total_tokens", 0)
             if total_tokens and field_set is not None and "total_tokens" in field_set:
-                segs.append([(_DIM, f"Σ{format_token_count_compact(total_tokens)}")])
+                segs.append([(_DIM, f"{_g('total_tokens', 'Σ')}{format_token_count_compact(total_tokens)}")])
         return segs
 
     def _build_status_bar_text(self, width: Optional[int] = None) -> str:
@@ -1122,17 +1142,20 @@ class CLIStatusBarMixin:
             session_title = (snapshot.get("session_title") or "") if show_title else ""
             segs = self._status_bar_segments(
                 snapshot, width, field_set, self._is_session_yolo_active(), styled=False)
-            parts = ["".join(t for _, t in seg) for seg in segs] or [f"☤ {model_short}"]
+            sep_bar, sep_dot = _g("separator", "│"), _g("separator_dot", "·")
+            parts = ["".join(t for _, t in seg) for seg in segs] or [
+                f"{_g('agent', '☤')} {model_short}"]
             # Narrow bars always join the battery with │; wider tiers use the tier separator.
             if battery_label:
                 parts.insert(0, battery_label)
             if width < 52:
-                text = f"{parts[0]} │ " + " · ".join(parts[1:]) if battery_label else " · ".join(parts)
+                text = (f"{parts[0]} {sep_bar} " + f" {sep_dot} ".join(parts[1:]) if battery_label
+                        else f" {sep_dot} ".join(parts))
             else:
-                text = (" · " if width < 76 else " │ ").join(parts)
+                text = (f" {sep_dot} " if width < 76 else f" {sep_bar} ").join(parts)
             return self._right_align_status_title(text, session_title, width)
         except Exception:
-            return f"☤ {self.model if getattr(self, 'model', None) else 'Hermes'}"
+            return f"{_g('agent', '☤')} {self.model if getattr(self, 'model', None) else 'Hermes'}"
 
     def _get_status_bar_fragments(self):
         if (
@@ -1153,9 +1176,9 @@ class CLIStatusBarMixin:
             session_title = (snapshot.get("session_title") or "") if _ok("title") else ""
             segs = self._status_bar_segments(
                 snapshot, width, field_set, self._is_session_yolo_active(), styled=True)
-            sep = " · " if width < 76 else " │ "
+            sep = f" {_g('separator_dot', '·')} " if width < 76 else f" {_g('separator', '│')} "
             frags: list = []
-            for seg in segs or [[(_SB, " ☤ "), (_STRONG, snapshot["model_short"])]]:
+            for seg in segs or [[(_SB, f" {_g('agent', '☤')} "), (_STRONG, snapshot["model_short"])]]:
                 if frags:
                     frags.append((_DIM, sep))
                 frags.extend(seg)
@@ -1166,18 +1189,19 @@ class CLIStatusBarMixin:
             except Exception:
                 stash_indicator = ""
             if stash_indicator and _ok("stash"):
-                frags.extend([(_DIM, " · "), (_STRONG, stash_indicator)])
+                frags.extend([(_DIM, f" {_g('separator_dot', '·')} "), (_STRONG, stash_indicator)])
             frags.append((_SB, " "))  # one-cell right margin
             # Battery is the first element when enabled: prepend ahead of the ☤ marker.
             battery_label = snapshot.get("battery_label") or ""
             if battery_label and _ok("battery"):
                 battery_style = self._battery_status_style(snapshot.get("battery_category", "dim"))
-                frags[0:0] = [(_SB, " "), (battery_style, battery_label), (_DIM, " │")]
+                frags[0:0] = [(_SB, " "), (battery_style, battery_label),
+                              (_DIM, f" {_g('separator', '│')}")]
 
             frags = self._right_align_status_title_fragments(frags, session_title, width)
             vim_label = self._vim_mode_label()
             if vim_label:
-                frags.extend([(_DIM, " │ "), (_STRONG, vim_label), (_SB, " ")])
+                frags.extend([(_DIM, f" {_g('separator', '│')} "), (_STRONG, vim_label), (_SB, " ")])
             total_width = sum(self._status_bar_display_width(text) for _, text in frags)
             if total_width > width:
                 plain_text = "".join(text for _, text in frags)

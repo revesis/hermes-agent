@@ -40,8 +40,12 @@ class SkinConfig:
         return self.branding.get(key, fallback)
 
     def get_glyph(self, key: str, fallback: str = "") -> str:
-        """Alternate marker for a hardcoded UI element (e.g. ``tool_default``), or *fallback*."""
-        return self.glyphs.get(key) or fallback
+        """Alternate marker for a hardcoded UI element (e.g. ``tool_default``), or *fallback*.
+
+        Blank / non-string values fall back rather than blanking the element.
+        """
+        value = self.glyphs.get(key)
+        return value if isinstance(value, str) and value.strip() else fallback
 
     def get_spinner_wings(self) -> list[tuple[str, str]]:
         """Spinner wing pairs, or empty list if none."""

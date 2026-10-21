@@ -310,6 +310,11 @@ class CLITuiMixin:
         """prompt_toolkit fragments for the current interactive state."""
         symbol, state_suffix = self._get_tui_prompt_symbols()
         compact = self._use_minimal_tui_chrome(width=self._get_tui_terminal_width())
+        from hermes_cli.skin_engine import get_active_glyph
+
+        def _g(key: str, fallback: str) -> str:
+            """Skin-overridable prompt-state marker (emoji-free skins set ``glyphs:``)."""
+            return get_active_glyph(key, fallback)
 
         def _state_fragment(style: str, icon: str, extra: str = ""):
             if compact:
@@ -322,27 +327,27 @@ class CLITuiMixin:
             return [(style, f"{icon} {state_suffix}")]
 
         if self._voice_recording:
-            return _state_fragment("class:voice-recording", "●", self._audio_level_bar())
+            return _state_fragment("class:voice-recording", _g("voice_recording", "●"), self._audio_level_bar())
         if self._voice_processing:
-            return _state_fragment("class:voice-processing", "◉")
+            return _state_fragment("class:voice-processing", _g("voice_processing", "◉"))
         if self._sudo_state:
-            return _state_fragment("class:sudo-prompt", "🔐")
+            return _state_fragment("class:sudo-prompt", _g("sudo", "🔐"))
         if self._secret_state:
-            return _state_fragment("class:sudo-prompt", "🔑")
+            return _state_fragment("class:sudo-prompt", _g("secret", "🔑"))
         if self._connection_state:
-            return _state_fragment("class:prompt-working", "⚙")
+            return _state_fragment("class:prompt-working", _g("connection", "⚙"))
         if self._approval_state or getattr(self, "_slash_confirm_state", None):
-            return _state_fragment("class:prompt-working", "⚠")
+            return _state_fragment("class:prompt-working", _g("approval", "⚠"))
         if self._clarify_freetext:
-            return _state_fragment("class:clarify-selected", "✎")
+            return _state_fragment("class:clarify-selected", _g("clarify", "✎"))
         if self._clarify_state:
             return _state_fragment("class:prompt-working", "?")
         if self._command_running:
             return _state_fragment("class:prompt-working", self._command_spinner_frame())
         if self._agent_running:
-            return _state_fragment("class:prompt-working", "☤")
+            return _state_fragment("class:prompt-working", _g("working", "☤"))
         if self._voice_mode:
-            return _state_fragment("class:voice-prompt", "🎤")
+            return _state_fragment("class:voice-prompt", _g("voice", "🎤"))
         return [("class:prompt", symbol)]
 
     def _get_tui_prompt_text(self) -> str:
