@@ -47,7 +47,8 @@ def _timestamp_or(value, default):
 def _squash(text: str, limit: int = 120) -> str:
     """Collapse whitespace and cap to *limit* cells with an ellipsis."""
     text = " ".join(text.split())
-    return text[: limit - 1] + "…" if len(text) > limit else text
+    from hermes_cli.skin_engine import skin_ellipsis
+    return text[: limit - 1] + skin_ellipsis() if len(text) > limit else text
 
 
 def _dim_notice(cli, msg: str, quiet: bool) -> None:
@@ -911,7 +912,8 @@ class CLISessionMixin:
                 return
         if request.preview:
             for line in render_compress_result(compress_now(self.agent, self.conversation_history, request)):
-                print(f"🗜️  {line}")
+                from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+                print(f"{_skin_text('🗜️')}  {line}")
             return
 
         original_count = len(self.conversation_history)
@@ -948,7 +950,8 @@ class CLISessionMixin:
                     icon = "⚠️"
                 else:
                     icon = "🗜️" if summary["noop"] else "✅"
-                print(f"  {icon} {summary['headline']}")
+                from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+                print(f"  {_skin_text(icon)} {summary['headline']}")
                 print(f"     {summary['token_line']}")
                 if summary["note"]:
                     print(f"     {summary['note']}")

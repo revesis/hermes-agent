@@ -192,13 +192,14 @@ def _format_image_attachment_badges(attached_images: list[Path], image_counter: 
 
     if width < 52:
         if len(attached_images) == 1:
-            return f"[📎 {_trunc(attached_images[0].name, 20)}]"
+            from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+            return f"[{_skin_text('📎')} {_trunc(attached_images[0].name, 20)}]"
         return t("cli.terminal.image_badge_count", count=len(attached_images))
 
     if width < 80:
         if len(attached_images) == 1:
-            return f"[📎 {_trunc(attached_images[0].name, 32)}]"
-        return f"[📎 {_trunc(attached_images[0].name, 20)}] [+{len(attached_images) - 1}]"
+            return f"[{_skin_text('📎')} {_trunc(attached_images[0].name, 32)}]"
+        return f"[{_skin_text('📎')} {_trunc(attached_images[0].name, 20)}] [+{len(attached_images) - 1}]"
 
     base = image_counter - len(attached_images) + 1
     return " ".join(t("cli.terminal.image_badge_numbered", index=base + i) for i in range(len(attached_images)))

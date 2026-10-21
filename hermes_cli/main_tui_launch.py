@@ -466,7 +466,8 @@ def _launch_tui(
     # preserve_inherited=False keeps --tui and other flags out of the subcommand.
     if code == 42:
         from hermes_cli.relaunch import relaunch
-        print("\n☤ Launching update...\n")
+        from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+        print(_skin_text("\n☤ Launching update...\n"))
         relaunch(["update"], preserve_inherited=False)
 
     sys.exit(code)

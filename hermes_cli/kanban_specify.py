@@ -82,7 +82,8 @@ def _truncate(text: str, limit: int) -> str:
     # Plain length clamp for LLM prompt fields; these never reach a terminal, so no escape stripping here.
     if len(text) <= limit:
         return text
-    return text[: limit - 1] + "…"
+    from hermes_cli.skin_engine import skin_ellipsis
+    return text[: limit - 1] + skin_ellipsis()
 
 
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)

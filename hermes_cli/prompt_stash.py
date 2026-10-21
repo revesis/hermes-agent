@@ -26,7 +26,8 @@ def build_preview(text: str, width: int = PREVIEW_WIDTH) -> str:
     flat = flat.replace("\n", " ⏎ ").replace("\t", " ")
     flat = " ".join(flat.split())
     if width > 1 and len(flat) > width:
-        return flat[: width - 1] + "…"
+        from hermes_cli.skin_engine import skin_ellipsis
+        return flat[: width - 1] + skin_ellipsis()
     return flat
 
 
@@ -68,7 +69,9 @@ class PromptStash:
     def indicator(self) -> str:
         """Status-bar indicator: ``📌 2`` idle, ``📌 2 ▲`` while browsing, ``""`` when empty."""
         n = len(self._items)
-        return "" if not n else f"📌 {n} ▲" if self.panel_open else f"📌 {n}"
+        from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+        mark = _skin_text("📌")
+        return "" if not n else f"{mark} {n} ▲" if self.panel_open else f"{mark} {n}"
 
     def placeholder_hint(self) -> str:
         """Composer placeholder text advertising the stashed draft."""

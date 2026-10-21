@@ -122,7 +122,8 @@ def offer_interactive(*, cprint, ask=input) -> Optional[bool]:
     if switch is None:
         return None
     cprint("")
-    cprint("☤ A new default sandbox image is available.")
+    from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+    cprint(_skin_text("☤ A new default sandbox image is available."))
     for line in explain_lines(switch):
         cprint(f"  {line}")
     try:

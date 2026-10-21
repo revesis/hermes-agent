@@ -266,7 +266,8 @@ def _short_reason(text: Any, limit: int = 120) -> str:
     """First line of an adapter/error blob, whitespace-collapsed and capped, or 'no details'."""
     first = str(text or "").strip().splitlines()
     reason = " ".join(first[0].split()) if first else ""
-    return (reason[: limit - 1] + "…") if len(reason) > limit else (reason or "no details")
+    from hermes_cli.skin_engine import skin_ellipsis
+    return (reason[: limit - 1] + skin_ellipsis()) if len(reason) > limit else (reason or "no details")
 
 
 def _delivery_fix_hint(job: dict[str, Any]) -> str:

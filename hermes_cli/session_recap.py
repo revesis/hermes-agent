@@ -135,7 +135,8 @@ def _truncate(text: str, limit: int) -> str:
     # Stored history is untrusted for display: strip escapes/control chars so a recap line can't clear
     # the screen or retitle the window when echoed to a terminal.
     text = " ".join(sanitize_display_text(text).split())  # collapse newlines for a compact one-liner
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+    from hermes_cli.skin_engine import skin_ellipsis
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + skin_ellipsis()
 
 
 def build_recap(

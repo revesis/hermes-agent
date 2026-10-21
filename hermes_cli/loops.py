@@ -430,7 +430,8 @@ class LoopManager:
         if s.status == "active":
             remaining = s.remaining_label()
             tail = ", wakeup running" if s.awaiting_response else (f", {remaining}" if remaining else "")
-            return f"↻ Loop (active, {meta}{tail}): {s.prompt}"
+            from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+            return _skin_text(f"↻ Loop (active, {meta}{tail}): {s.prompt}")
         if s.status == "paused":
             return f"⏸ Loop (paused, {meta}{_dash(s.paused_reason)}): {s.prompt}"
         if s.status == "done":
@@ -692,7 +693,8 @@ def dispatch_loop_command(
     except ValueError as exc:
         return {"output": f"/loop: {exc}", "created": False}
 
-    lines = [f"↻ Loop set ({state.cadence_label()}): {state.prompt}"]
+    from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+    lines = [_skin_text(f"↻ Loop set ({state.cadence_label()}): {state.prompt}")]
     if replacing:
         lines.append("(replaced the previous loop for this session)")
     if parsed["interval_seconds"] is not None and parsed["interval_seconds"] < state.interval_seconds:

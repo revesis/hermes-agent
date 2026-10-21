@@ -30,7 +30,8 @@ _UNKNOWN_KEY = "unknown"
 
 def _short(text: str, limit: int = _SUMMARY_LIMIT) -> str:
     first = (text or "").strip().splitlines()[0] if (text or "").strip() else ""
-    return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
+    from hermes_cli.skin_engine import skin_ellipsis
+    return first if len(first) <= limit else first[: limit - 1].rstrip() + skin_ellipsis()
 
 
 def chat_error_response(

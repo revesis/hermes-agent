@@ -137,7 +137,8 @@ def _log_hint_action(task_id: str) -> DiagnosticAction:
 def _error_snippet(last_err) -> str:
     """First 500 chars of the error (with ellipsis), or "" when absent."""
     err_text = (last_err or "").strip() if last_err else ""
-    return err_text[:500] + ("…" if len(err_text) > 500 else "") if err_text else ""
+    from hermes_cli.skin_engine import skin_ellipsis
+    return err_text[:500] + (skin_ellipsis() if len(err_text) > 500 else "") if err_text else ""
 
 
 def _active_hallucination_events(events: Iterable[Any], kind: str) -> list[Any]:

@@ -223,7 +223,8 @@ def render_breakdown(data: dict[str, Any]) -> str:
         for sk in shown:
             md = sk["skill_md_bytes"]
             md_str = f"{md:>8,} B" if md is not None else f"{'n/a':>10}"
-            name = sk["name"] if len(sk["name"]) <= 28 else sk["name"][:27] + "…"
+            from hermes_cli.skin_engine import skin_ellipsis
+            name = sk["name"] if len(sk["name"]) <= 28 else sk["name"][:27] + skin_ellipsis()
             lines.append(f"    {name:<28} {md_str}  {sk['index_line_bytes']:>8,} B")
         if (remaining := len(skills) - len(shown)) > 0:
             lines.append(f"    … and {remaining} more (use --json for the full list)")

@@ -500,8 +500,32 @@ def get_active_skin_name() -> str:
     return _active_skin_name
 
 
+_skin_from_config = False
+
+
+def ensure_active_skin() -> None:
+    """Load the configured skin once for processes that never ran init_skin_from_config.
+
+    CLI subcommands (``status``, ``doctor``, ``update``, ``setup`` …) print before any
+    interactive config load, so without this they would keep the default skin and ignore an
+    ASCII skin's ``glyph_aliases``. The flag is set *before* the load so a ``t()`` call during
+    config parsing cannot recurse.
+    """
+    global _skin_from_config
+    if _skin_from_config:
+        return
+    _skin_from_config = True
+    try:
+        from hermes_cli.config import load_config
+        init_skin_from_config(load_config())
+    except Exception:
+        logger.debug("skin bootstrap from config failed", exc_info=True)
+
+
 def init_skin_from_config(config: dict) -> None:
     """Initialize the active skin from CLI config at startup."""
+    global _skin_from_config
+    _skin_from_config = True
     display = config.get("display") or {}
     skin_name = display.get("skin", "default") if isinstance(display, dict) else "default"
     set_active_skin(skin_name.strip() if isinstance(skin_name, str) and skin_name.strip() else "default")
@@ -541,6 +565,7 @@ def apply_glyph_aliases(text: str) -> str:
     ``glyph_alias_fallback`` when the skin sets one — so a catalog update cannot reintroduce
     tofu, while CJK and accented copy still pass through untouched.
     """
+    ensure_active_skin()
     try:
         skin = get_active_skin()
         aliases, fallback = skin.glyph_aliases, skin.glyph_alias_fallback
@@ -565,11 +590,17 @@ def get_active_glyph(key: str, fallback: str) -> str:
 
     Lets an emoji-free skin replace markers that are otherwise baked into the CLI renderer.
     """
+    ensure_active_skin()
     try:
         glyph = get_active_skin().get_glyph(key, fallback)
         return glyph if isinstance(glyph, str) and glyph else fallback
     except Exception:
         return fallback
+
+
+def skin_ellipsis(fallback: str = "…") -> str:
+    """Ellipsis marker for truncated UI text — an ASCII skin sets ``glyphs.ellipsis``."""
+    return get_active_glyph("ellipsis", fallback)
 
 
 def get_active_prompt_symbol(fallback: str = "❯") -> str:

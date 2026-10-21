@@ -133,7 +133,8 @@ def _frame_renderable(payload, *, cols, rows, reveal, color):
         return style if color else None
 
     title = Text()
-    title.append("✦ Journey ", style=st(f"bold {_TITLE_COLOR}"))
+    from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+    title.append(_skin_text("✦ Journey "), style=st(f"bold {_TITLE_COLOR}"))
     title.append("· learned skills & memories over time", style=st("grey62"))
     parts: list[Any] = [title]
 

@@ -24,7 +24,17 @@ class Colors:
 
 
 def color(text: str, *codes) -> str:
-    """Apply color codes to text (only when color output is appropriate)."""
+    """Apply color codes to text (only when color output is appropriate).
+
+    The text is first run through the active skin's ``glyph_aliases``, so every CLI subcommand
+    that colors a banner or a warning (``hermes status``, ``doctor``, ``setup``, ``update`` …)
+    honors an ASCII-only skin. A skin without aliases changes nothing.
+    """
+    try:
+        from hermes_cli.skin_engine import apply_glyph_aliases
+        text = apply_glyph_aliases(text)
+    except Exception:
+        pass
     if not should_use_color():
         return text
     return "".join(codes) + text + Colors.RESET

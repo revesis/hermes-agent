@@ -714,12 +714,15 @@ def _tip_shas(git_cmd, target_ref: str, base: str = "HEAD") -> tuple[str, str]:
 def _print_update_check_result(behind: int | None, compare_branch: str) -> None:
     """Report ``--check``'s verdict: up to date, N commits behind, or behind by an unknown count."""
     if behind == 0:
-        print("✓ Already up to date.")
+        from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+        print(_skin_text("✓ Already up to date."))
         return
     if behind is not None:
-        print(f"☤ Update available: {behind} {'commit' if behind == 1 else 'commits'} behind {compare_branch}.")
+        from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+        print(_skin_text(f"☤ Update available: {behind} {'commit' if behind == 1 else 'commits'} behind {compare_branch}."))
     else:
-        print(f"☤ Update available (behind {compare_branch}).")
+        from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+        print(_skin_text(f"☤ Update available (behind {compare_branch})."))
     from hermes_cli.config import recommended_update_command
     print(f"  Run '{recommended_update_command()}' to install.")
 
@@ -1823,7 +1826,8 @@ def _cmd_update_impl(args, gateway_mode: bool):
     opts = _resolve_update_options(args, gateway_mode)
     gw_input_fn, assume_yes = opts.gw_input_fn, opts.assume_yes
 
-    print("☤ Updating Hermes Agent...")
+    from hermes_cli.skin_engine import apply_glyph_aliases as _skin_text
+    print(_skin_text("☤ Updating Hermes Agent..."))
     print()
 
     _pre_update_plan = _begin_update_receipt_and_plan(args)

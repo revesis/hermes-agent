@@ -445,7 +445,8 @@ def _check_python_environment(should_fix: bool, f: Finding) -> None:
         check_bool(not is_sqlite_wal_reset_vulnerable(), f"SQLite {sqlite3.sqlite_version}",
                    (f"SQLite {sqlite3.sqlite_version} (WAL-reset bug)", _sqlite_upgrade_hint()))
         if src:
-            check_info(f"SQLite source id: {(src[:48] + '…') if len(src) > 48 else src}")
+            from hermes_cli.skin_engine import skin_ellipsis
+            check_info(f"SQLite source id: {(src[:48] + skin_ellipsis()) if len(src) > 48 else src}")
         _report_database_journal_modes()
     # PM launchers run base Python with the selected dependency tree on
     # sys.path. Neither sys.prefix nor a stale PYTHONPATH proves activation.
