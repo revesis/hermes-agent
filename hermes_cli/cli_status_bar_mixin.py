@@ -157,9 +157,12 @@ class CLIStatusBarMixin:
         prompt_start_time: Optional[float], prompt_duration: float, live: bool = False) -> str:
         """Per-prompt elapsed time. Always a string (``⏲ 0s`` on fresh start); seconds stay
         visible at every scale so it increments smoothly (``1m 59s → 2m → 2m 1s``). ⏱ while
-        live, ⏲ frozen — width-1 glyphs (no variation selector) keep the bar aligned."""
+        live, ⏲ frozen — width-1 glyphs (no variation selector) keep the bar aligned.
+        Both markers are skin-overridable (``glyphs.timer`` / ``glyphs.timer_frozen``)."""
+        from hermes_cli.skin_engine import get_active_glyph
+        frozen = get_active_glyph("timer_frozen", "⏲")
         if prompt_start_time is None and prompt_duration == 0.0:
-            return "⏲ 0s"
+            return f"{frozen} 0s"
         if prompt_start_time is not None:
             elapsed = max(0.0, time.time() - prompt_start_time)
         else:
@@ -178,16 +181,17 @@ class CLIStatusBarMixin:
                         else t("cli.shared.duration_m", minutes=minutes))
         else:
             time_str = t("cli.shared.duration_s", seconds=int(elapsed))
-        return f"{'⏱' if live else '⏲'} {time_str}"
+        return f"{get_active_glyph('timer', '⏱') if live else frozen} {time_str}"
 
     @staticmethod
     def _format_idle_since(last_finished_at: Optional[float], turn_live: bool) -> str:
         """``✓ 42s`` since the last final response; empty while a turn is live or before the
         first turn completes."""
         from cli import format_duration_compact
+        from hermes_cli.skin_engine import get_active_glyph
         if turn_live or last_finished_at is None:
             return ""
-        return f"✓ {format_duration_compact(max(0.0, time.time() - last_finished_at))}"
+        return f"{get_active_glyph('idle', '✓')} {format_duration_compact(max(0.0, time.time() - last_finished_at))}"
 
     def _get_status_bar_snapshot(self) -> dict[str, Any]:
         from cli import _reverse_alias_for_display, datetime, format_duration_compact

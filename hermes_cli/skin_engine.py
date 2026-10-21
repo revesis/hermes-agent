@@ -25,6 +25,10 @@ class SkinConfig:
     branding: dict[str, str] = field(default_factory=dict)
     tool_prefix: str = "┊"
     tool_emojis: dict[str, str] = field(default_factory=dict)  # per-tool emoji overrides
+    # Alternate markers for elements the renderer hardcodes (``tool_default``, ``connector``,
+    # ``mcp``, ``search``, ``describe``, ``timer``, ``timer_frozen``, ``idle``). A skin that sets
+    # these goes emoji-free on terminals that cannot render them; unset keys keep the default.
+    glyphs: dict[str, str] = field(default_factory=dict)
     banner_logo: str = ""    # Rich-markup ASCII art logo (replaces HERMES_AGENT_LOGO)
     banner_hero: str = ""    # Rich-markup hero art (replaces HERMES_CADUCEUS)
     custom_css: str = ""     # Raw CSS injected as a <style> tag on the desktop GUI (32 KiB cap)
@@ -34,6 +38,10 @@ class SkinConfig:
 
     def get_branding(self, key: str, fallback: str = "") -> str:
         return self.branding.get(key, fallback)
+
+    def get_glyph(self, key: str, fallback: str = "") -> str:
+        """Alternate marker for a hardcoded UI element (e.g. ``tool_default``), or *fallback*."""
+        return self.glyphs.get(key) or fallback
 
     def get_spinner_wings(self) -> list[tuple[str, str]]:
         """Spinner wing pairs, or empty list if none."""
@@ -395,6 +403,12 @@ def _build_skin_config(data: dict[str, Any]) -> SkinConfig:
 
     def merged(key: str) -> dict[str, Any]:
         return {**default.get(key, {}), **section(key)}
+
+    def glyphs_section() -> dict[str, str]:
+        """``glyphs:`` is not merged over the default skin — unset keys must keep the renderer's
+        own fallback (an empty string would blank the element instead of restoring it)."""
+        return {k: v.strip() for k, v in section("glyphs").items()
+                if isinstance(k, str) and isinstance(v, str) and v.strip()}
     # Paired palettes are NOT merged over the default skin's blocks: an empty block means
     # "no hand-tuned variant for that polarity" and consumers (the TUI) fall back to `colors`
     # + automatic adaptation, which beats the default's gold light palette under a crimson skin.
@@ -403,7 +417,8 @@ def _build_skin_config(data: dict[str, Any]) -> SkinConfig:
         light_colors=section("light_colors"), dark_colors=section("dark_colors"),
         spinner=merged("spinner"), branding=merged("branding"),
         tool_prefix=data.get("tool_prefix", default.get("tool_prefix", "┊")),
-        tool_emojis=section("tool_emojis"), banner_logo=data.get("banner_logo", ""),
+        tool_emojis=section("tool_emojis"), glyphs=glyphs_section(),
+        banner_logo=data.get("banner_logo", ""),
         banner_hero=data.get("banner_hero", ""),
         custom_css=str(data.get("customCSS", "")).strip()[:32768])
 
@@ -477,6 +492,19 @@ def init_skin_from_config(config: dict) -> None:
 def _active_branding(key: str, fallback: str) -> str:
     try:
         return get_active_skin().get_branding(key, fallback)
+    except Exception:
+        return fallback
+
+
+def get_active_glyph(key: str, fallback: str) -> str:
+    """Alternate marker for a renderer-hardcoded element (``tool_default``, ``connector``,
+    ``mcp``, ``search``, ``describe``, ``timer``, ``timer_frozen``, ``idle``), or *fallback*.
+
+    Lets an emoji-free skin replace markers that are otherwise baked into the CLI renderer.
+    """
+    try:
+        glyph = get_active_skin().get_glyph(key, fallback)
+        return glyph if isinstance(glyph, str) and glyph else fallback
     except Exception:
         return fallback
 

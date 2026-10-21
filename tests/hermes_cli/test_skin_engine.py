@@ -257,3 +257,40 @@ class TestCliBrandingHelpers:
         overrides = get_prompt_toolkit_style_overrides()
         assert overrides["status-bar"] == f"bg:{skin.get_color('status_bar_bg')} {skin.get_color('banner_text')}"
         assert overrides["voice-status"] == f"bg:{skin.get_color('voice_status_bg')} {skin.get_color('ui_label')}"
+
+
+class TestSkinGlyphs:
+    """``glyphs:`` lets a skin replace markers the CLI renderer otherwise hardcodes."""
+
+    def test_build_skin_config_includes_glyphs(self):
+        from hermes_cli.skin_engine import _build_skin_config
+        skin = _build_skin_config({"name": "ascii", "glyphs": {"tool_default": "*", "timer": "t"}})
+        assert skin.glyphs == {"tool_default": "*", "timer": "t"}
+        assert skin.get_glyph("tool_default") == "*"
+        assert skin.get_glyph("missing", "⚡") == "⚡"
+
+    def test_glyphs_are_not_inherited_from_default(self):
+        """Unset keys must keep the renderer fallback, not pick up another skin's marker."""
+        from hermes_cli.skin_engine import _build_skin_config, _BUILTIN_SKINS
+        assert _BUILTIN_SKINS["default"].get("glyphs", {}) == {}
+        skin = _build_skin_config({"name": "custom"})
+        assert skin.glyphs == {}
+
+    def test_invalid_glyph_values_are_dropped(self):
+        from hermes_cli.skin_engine import _build_skin_config
+        skin = _build_skin_config({"name": "junk", "glyphs": {"ok": "  ", "bad": 3, "good": "x"}})
+        assert skin.glyphs == {"good": "x"}
+
+    def test_get_active_glyph_reads_active_skin(self, tmp_path, monkeypatch):
+        from hermes_cli import skin_engine as se
+        skins = tmp_path / "skins"
+        skins.mkdir()
+        (skins / "asciitest.yaml").write_text(
+            "name: asciitest\nglyphs:\n  tool_default: '*'\n", encoding="utf-8")
+        monkeypatch.setattr(se, "_skins_dir", lambda: skins)
+        se.set_active_skin("asciitest")
+        try:
+            assert se.get_active_glyph("tool_default", "⚡") == "*"
+            assert se.get_active_glyph("timer", "⏱") == "⏱"
+        finally:
+            se.set_active_skin("default")

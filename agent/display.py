@@ -139,17 +139,43 @@ def get_skin_tool_prefix() -> str:
     return skin.tool_prefix if skin else "┊"
 
 
-def get_tool_emoji(tool_name: str, default: str = "⚡") -> str:
-    """Display emoji for a tool: skin ``tool_emojis`` override, then registry, then *default*."""
+_DEFAULT_TOOL_EMOJI = "⚡"
+
+
+def default_tool_emoji() -> str:
+    """Fallback marker for a tool with no skin/registry entry.
+
+    ``skin.glyphs.tool_default`` wins so an emoji-free skin can replace the ⚡ on terminals
+    that cannot render it; otherwise ⚡.
+    """
+    skin = _get_skin()
+    try:
+        if skin is not None:
+            glyph = skin.get_glyph("tool_default", _DEFAULT_TOOL_EMOJI)
+            if isinstance(glyph, str) and glyph:
+                return glyph
+    except Exception:
+        logger.debug("skin glyph lookup failed", exc_info=True)
+    return _DEFAULT_TOOL_EMOJI
+
+
+def get_tool_emoji(tool_name: str, default: str | None = None) -> str:
+    """Display emoji for a tool: skin ``tool_emojis`` override, then registry, then *default*.
+
+    *default* of ``None`` means "whatever the skin's ``glyphs.tool_default`` says" (⚡ when the
+    skin sets nothing); an explicit *default* always wins, so callers that want their own marker
+    (e.g. the gateway's ⚙️) keep it regardless of skin.
+    """
     skin = _get_skin()
     override = skin.tool_emojis.get(tool_name) if skin and skin.tool_emojis else None
     if override:
         return override
+    fallback = default if default is not None else default_tool_emoji()
     try:
         from tools.registry import registry
-        return registry.get_emoji(tool_name, default="") or default
+        return registry.get_emoji(tool_name, default="") or fallback
     except Exception:
-        return default
+        return fallback
 
 
 # ── Tool preview (one-line summary of a tool call's primary argument) ─────
@@ -559,7 +585,7 @@ def bridge_tool_labels(tool_name: str, args: dict | None) -> list:
     return tool_labels_for_call(tool_name, args) if _friendly_tool_labels else []
 
 
-def tool_row_emoji(tool_name: str, args: dict | None = None, default: str = "⚡") -> str:
+def tool_row_emoji(tool_name: str, args: dict | None = None, default: str | None = None) -> str:
     labels = bridge_tool_labels(tool_name, args) if args else []
     return labels[0].emoji if labels else get_tool_emoji(tool_name, default)
 

@@ -15,6 +15,21 @@ SEARCH_EMOJI = "🔎"
 DESCRIBE_EMOJI = "📖"
 DEFAULT_TOOL_EMOJI = "⚡"
 
+
+def _glyph(key: str, fallback: str) -> str:
+    """Active skin's alternate marker for a hardcoded element, or *fallback*.
+
+    The constants above stay the defaults; an emoji-free skin overrides them through its
+    ``glyphs:`` block (``tool_default``, ``connector``, ``mcp``, ``search``, ``describe``).
+    """
+    try:
+        from hermes_cli.skin_engine import get_active_glyph
+        return get_active_glyph(key, fallback)
+    except Exception:
+        logger.debug("skin glyph lookup failed for %s", key, exc_info=True)
+        return fallback
+
+
 _APP_TITLES = {
     "discord": "Discord",
     "figma": "Figma",
@@ -79,9 +94,9 @@ def _action_phrase(tool: str, app_slug: str = "") -> str:
 def _registry_emoji(name: str) -> str:
     try:
         from tools.registry import registry
-        return registry.get_emoji(name, default="") or DEFAULT_TOOL_EMOJI
+        return registry.get_emoji(name, default="") or _glyph("tool_default", DEFAULT_TOOL_EMOJI)
     except Exception:
-        return DEFAULT_TOOL_EMOJI
+        return _glyph("tool_default", DEFAULT_TOOL_EMOJI)
 
 
 def _arg_preview(name: str, arguments: Any) -> str:
@@ -107,7 +122,8 @@ def _local_tool_label(name: str, arguments: Any) -> ToolLabel:
 
 
 def _unnamed_label(arguments: Any) -> ToolLabel:
-    return ToolLabel(kind="tool", app="Unnamed call", action="", emoji=DEFAULT_TOOL_EMOJI,
+    return ToolLabel(kind="tool", app="Unnamed call", action="",
+                     emoji=_glyph("tool_default", DEFAULT_TOOL_EMOJI),
                      name="", preview=_arg_preview("", arguments))
 
 
@@ -121,12 +137,12 @@ def label_for_tool_name(name: str, arguments: Any = None) -> Optional[ToolLabel]
         if isinstance(alias, str) and alias.strip():
             action = f"{action} ({alias.strip()})"
         return ToolLabel(kind="connector", app=app_title(connector.connector), action=action,
-                         emoji=CONNECTOR_EMOJI, name=name, preview=_arg_preview(name, arguments))
+                         emoji=_glyph("connector", CONNECTOR_EMOJI), name=name, preview=_arg_preview(name, arguments))
     if name.startswith(MCP_TOOL_NAME_PREFIX):
         server, _, tool = name[len(MCP_TOOL_NAME_PREFIX):].partition("__")
         if tool:
             return ToolLabel(kind="mcp", app=app_title(server), action=_action_phrase(tool),
-                             emoji=MCP_EMOJI, name=name, preview=_arg_preview(name, arguments))
+                             emoji=_glyph("mcp", MCP_EMOJI), name=name, preview=_arg_preview(name, arguments))
     return _local_tool_label(name, arguments)
 
 
@@ -136,13 +152,13 @@ def _bridge_labels(function_name: str, args: dict[str, Any]) -> list[ToolLabel]:
         queries = [queries] if isinstance(queries, str) else queries
         first = next((str(q) for q in queries if str(q or "").strip()), "") if isinstance(queries, list) else ""
         return [ToolLabel(kind="tool", app="Searching tools", action=first,
-                          emoji=SEARCH_EMOJI, name=function_name)]
+                          emoji=_glyph("search", SEARCH_EMOJI), name=function_name)]
     names = args.get("names")
     names = [names] if isinstance(names, str) else names
     count = len(names) if isinstance(names, list) else 0
     return [ToolLabel(kind="tool", app="Reading tool details",
                       action=f"{count} tool" if count == 1 else f"{count} tools",
-                      emoji=DESCRIBE_EMOJI, name=function_name)]
+                      emoji=_glyph("describe", DESCRIBE_EMOJI), name=function_name)]
 
 
 def labels_for_call(function_name: str, function_args: Any) -> list[ToolLabel]:
