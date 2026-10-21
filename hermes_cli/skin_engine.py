@@ -29,6 +29,12 @@ class SkinConfig:
     # ``mcp``, ``search``, ``describe``, ``timer``, ``timer_frozen``, ``idle``). A skin that sets
     # these goes emoji-free on terminals that cannot render them; unset keys keep the default.
     glyphs: dict[str, str] = field(default_factory=dict)
+    # Literal -> replacement map for markers baked into locale catalogs (``⚠️``, ``✓``, ``✦``).
+    # Applied to every ``t()`` result, so an ASCII-only skin can clear emoji the catalogs carry.
+    glyph_aliases: dict[str, str] = field(default_factory=dict)
+    # Replacement for symbol/emoji codepoints the aliases did not name ("" = leave them).
+    # Keeps an ASCII skin safe against markers a future catalog adds; CJK and accents survive.
+    glyph_alias_fallback: str = ""
     banner_logo: str = ""    # Rich-markup ASCII art logo (replaces HERMES_AGENT_LOGO)
     banner_hero: str = ""    # Rich-markup hero art (replaces HERMES_CADUCEUS)
     custom_css: str = ""     # Raw CSS injected as a <style> tag on the desktop GUI (32 KiB cap)
@@ -408,6 +414,12 @@ def _build_skin_config(data: dict[str, Any]) -> SkinConfig:
     def merged(key: str) -> dict[str, Any]:
         return {**default.get(key, {}), **section(key)}
 
+    def glyph_aliases_section() -> dict[str, str]:
+        """Longest source marker first: ``⚠️`` (with VS16) must match before ``⚠``."""
+        pairs = [(k, v.strip()) for k, v in section("glyph_aliases").items()
+                 if isinstance(k, str) and k and isinstance(v, str)]
+        return dict(sorted(pairs, key=lambda kv: -len(kv[0])))
+
     def glyphs_section() -> dict[str, str]:
         """``glyphs:`` is not merged over the default skin — unset keys must keep the renderer's
         own fallback (an empty string would blank the element instead of restoring it)."""
@@ -422,6 +434,8 @@ def _build_skin_config(data: dict[str, Any]) -> SkinConfig:
         spinner=merged("spinner"), branding=merged("branding"),
         tool_prefix=data.get("tool_prefix", default.get("tool_prefix", "┊")),
         tool_emojis=section("tool_emojis"), glyphs=glyphs_section(),
+        glyph_aliases=glyph_aliases_section(),
+        glyph_alias_fallback=str(data.get("glyph_alias_fallback", "") or "").strip()[:4],
         banner_logo=data.get("banner_logo", ""),
         banner_hero=data.get("banner_hero", ""),
         custom_css=str(data.get("customCSS", "")).strip()[:32768])
@@ -498,6 +512,51 @@ def _active_branding(key: str, fallback: str) -> str:
         return get_active_skin().get_branding(key, fallback)
     except Exception:
         return fallback
+
+
+# Codepoint ranges that are markers, not language: arrows, technical symbols, geometric
+# shapes, dingbats, and the emoji planes. Text outside these (CJK, accents) is never touched.
+_SYMBOL_RANGES = (
+    (0x2190, 0x21FF), (0x2300, 0x23FF), (0x2500, 0x259F),
+    (0x25A0, 0x25FF), (0x2600, 0x27BF), (0x2B00, 0x2BFF), (0x1F000, 0x1FAFF),
+)
+# Invisible joiners/selectors: dropped, never substituted.
+_DROP_CHARS = "\ufe0e\ufe0f\u200d"
+
+
+def _is_symbol_char(ch: str) -> bool:
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in _SYMBOL_RANGES)
+
+
+def apply_glyph_aliases(text: str) -> str:
+    """Rewrite the active skin's ``glyph_aliases`` markers inside *text*.
+
+    Locale catalogs carry emoji (``⚠️``, ``✓``, ``✦``, ``↻``); an ASCII-only skin lists the
+    replacements it wants and every ``t()`` result is cleaned through here. No aliases (every
+    built-in skin) returns *text* untouched.
+
+    Two safety nets: variation selectors / ZWJ are dropped (``⚠️`` must not leave an invisible
+    non-ASCII byte), and an unmapped marker inside :data:`_SYMBOL_RANGES` becomes
+    ``glyph_alias_fallback`` when the skin sets one — so a catalog update cannot reintroduce
+    tofu, while CJK and accented copy still pass through untouched.
+    """
+    try:
+        skin = get_active_skin()
+        aliases, fallback = skin.glyph_aliases, skin.glyph_alias_fallback
+    except Exception:
+        return text
+    if not text or (not aliases and not fallback):
+        return text
+    for marker, replacement in aliases.items():
+        if marker in text:
+            text = text.replace(marker, replacement)
+    for ch in _DROP_CHARS:
+        if ch in text:
+            text = text.replace(ch, "")
+    if text.isascii() or not fallback:
+        return text
+    return "".join(fallback if _is_symbol_char(ch) else ch for ch in text)
 
 
 def get_active_glyph(key: str, fallback: str) -> str:

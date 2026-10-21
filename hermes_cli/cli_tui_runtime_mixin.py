@@ -129,7 +129,8 @@ class CLITuiRuntimeMixin:
     def _tui_run_slash_input(self, user_input: str):
         """Dispatch a slash command. Returns the pending agent seed to run as a chat turn, else None."""
         from cli import _cprint
-        _cprint(f"\n⚙️  {user_input}")
+        from hermes_cli.skin_engine import get_active_glyph
+        _cprint(f"\n{get_active_glyph('command', '⚙️')}  {user_input}")
         try:
             if not self.process_command(user_input):
                 self._should_exit = True

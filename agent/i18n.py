@@ -220,6 +220,19 @@ def get_language() -> str:
     return _resolve_language(_current_home())
 
 
+def _skin_aliases(text: str) -> str:
+    """Run a localized UI string through the active skin's ``glyph_aliases``.
+
+    Catalogs carry emoji in their copy; an ASCII-only skin maps them to ASCII tokens. Every
+    built-in skin ships no aliases, so this is a no-op unless a skin opts in.
+    """
+    try:
+        from hermes_cli.skin_engine import apply_glyph_aliases
+        return apply_glyph_aliases(text)
+    except Exception:
+        return text
+
+
 def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
     """Translate a dotted catalog key to the active (or explicit ``lang``) language.
 
@@ -235,12 +248,12 @@ def t(key: str, lang: str | None = None, **format_kwargs: Any) -> str:
         logger.debug("i18n miss: key=%r lang=%r", key, target)
         value = key
     if not format_kwargs:
-        return value
+        return _skin_aliases(value)
     try:
-        return value.format(**format_kwargs)
+        return _skin_aliases(value.format(**format_kwargs))
     except (KeyError, IndexError, ValueError) as exc:
         logger.warning("i18n format failed for key=%r lang=%r kwargs=%r: %s", key, target, format_kwargs, exc)
-        return value
+        return _skin_aliases(value)
 
 
 __all__ = [
