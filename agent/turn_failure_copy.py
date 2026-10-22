@@ -330,6 +330,16 @@ _ONE_OFF_COPY: dict[str, str] = {
         "so nothing was run. Check your network and send /retry; asking for the file in smaller "
         "pieces also helps."
     ),
+    # Rides failure_reason="truncated": the provider reported a NORMAL stop, so the model
+    # ended its own reply mid tool call — no output cap was hit and "raise max_tokens" would
+    # send the user after a limit that was never applied.
+    "malformed_tool_call": (
+        "The model stopped in the middle of writing an action — the tool arguments it sent were "
+        "not valid JSON — so Hermes didn't run it and nothing was changed. This is the model "
+        "ending its own reply, not an output-length limit, so raising max_tokens won't help. "
+        "Send /retry; if it keeps happening, ask for the work in smaller pieces or switch "
+        "models with /model."
+    ),
     # Rides failure_reason="truncated": clean EOF (no transport error, no finish_reason)
     # mid tool-call, retries exhausted — not a network problem on the user's side (#102766).
     "stream_closed_tool_call": (

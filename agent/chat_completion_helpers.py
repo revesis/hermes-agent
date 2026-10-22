@@ -3336,6 +3336,11 @@ class _StreamingCall(StreamingWaitMonitor):
                 "text with no tool calls. The server or a proxy closed the stream cleanly.")
             return _build_partial_stream_stub(role, full_content, full_reasoning, model_name, usage_obj, clean_eof=True)
         effective_finish_reason = "length" if has_truncated_tool_args else (finish_reason or "stop")
+        # A provider-confirmed stop with unparseable arguments is the model ending its own
+        # reply mid-call, not an output-cap truncation: the "length" stamp stays (it is what
+        # keeps the broken call from executing) but the response is tagged so the truncation
+        # handler words it correctly and skips the useless max_tokens escalation.
+        malformed_tool_args = bool(has_truncated_tool_args) and str(finish_reason or "").lower() != "length"
         provider_stream_error = _provider_stream_error_from_text(
             full_content or "", effective_finish_reason, response=getattr(stream, "response", None))
         if provider_stream_error is not None:
@@ -3352,6 +3357,14 @@ class _StreamingCall(StreamingWaitMonitor):
         response = SimpleNamespace(id=response_id or ("stream-" + str(uuid.uuid4())), model=model_name, usage=usage_obj,
             provider=upstream_provider,
             choices=[SimpleNamespace(index=0, message=message, finish_reason=effective_finish_reason)])
+        if malformed_tool_args:
+            # Consumed by turn_truncation.recover_from_truncation: no max_tokens boost, and
+            # the failure copy must not claim an output-length limit was hit.
+            response._malformed_tool_args = True
+            logger.warning(
+                "Tool-call arguments were not valid JSON although the provider reported "
+                "finish_reason=%r (not an output-length stop): the model ended its reply "
+                "mid-call.", finish_reason)
         # A held router timeout shim (#68396) is rejected by validate_response and retried;
         # releasing its text here would show the provider failure as assistant output.
         if not is_router_timeout_shim(response):

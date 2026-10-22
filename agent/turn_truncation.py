@@ -397,6 +397,42 @@ def boosted_output_cap(agent: Any, requested_cap: Optional[int], n: int, base: O
     return min(boost, limit) if limit else boost
 
 
+#: Plain re-issues allowed when the provider reported a normal stop but the tool-call
+#: arguments were not valid JSON. Deliberately small: the request is unchanged, so a model
+#: that cut itself off once usually repeats it — the old 4-attempt ladder with a doubling
+#: max_tokens spent minutes proving that a cap nobody set was not the cause.
+_MALFORMED_TOOL_CALL_RETRIES = 2
+
+
+def _retry_malformed_tool_call(st: _Trunc) -> TruncationVerdict:
+    """Re-issue a request whose tool call came back with unparseable arguments.
+
+    The provider reported ``stop``/``tool_calls``, so no output cap was hit: the model ended
+    its own reply mid-JSON. A bigger ``max_tokens`` cannot help, so
+    ``_ephemeral_max_output_tokens`` is left untouched here, and the terminal copy names the
+    real cause instead of an output-length limit.
+    """
+    agent = st.agent
+    if st.truncated_tool_call_retries < _MALFORMED_TOOL_CALL_RETRIES:
+        st.truncated_tool_call_retries += 1
+        agent._buffer_vprint(
+            f"⚠️  Incomplete tool call (arguments were not valid JSON) — retrying "
+            f"({st.truncated_tool_call_retries}/{_MALFORMED_TOOL_CALL_RETRIES})..."
+        )
+        return st.done("continue")  # don't append the broken response
+    agent._flush_status_buffer()
+    agent._vprint(
+        f"{agent.log_prefix}⚠️  The model stopped mid tool call and its arguments were still "
+        f"invalid JSON after {_MALFORMED_TOOL_CALL_RETRIES} retries — the action was not executed.",
+        force=True, diagnostic=True,
+    )
+    _final_response = site_copy("malformed_tool_call")
+    agent._cleanup_task_resources(st.effective_task_id)
+    # Prior tool batches can leave a tool-result tail; this path never reaches finalize_turn.
+    close_interrupted_tool_sequence(st.messages, _final_response)
+    return st.end_turn(_final_response, cleanup=False, failure=("truncated", True))
+
+
 def _retry_truncated_tool_call(st: _Trunc, api_kwargs: Any) -> TruncationVerdict:
     """Truncated tool call: re-run the same call (up to 4×) with a boosted max_tokens —
     a real output-cap truncation needs it, harmless for a network stall — else refuse to
@@ -480,6 +516,11 @@ def recover_from_truncation(
     elif st.window_filled:
         _banner = (f"Response truncated (finish_reason='length') - the prompt filled the context window "
                    f"({st.window_filled[0]:,}/{st.window_filled[1]:,} tokens)")
+    elif getattr(response, "_malformed_tool_args", False):
+        # The provider reported a normal stop; only the tool-call JSON was broken. Saying
+        # "hit max output tokens" here sent users chasing max_tokens that was never the cap.
+        _banner = ("Response ended with an incomplete tool call (its arguments were not valid JSON) - "
+                   "the model stopped mid-call, not on an output-token limit")
     else:
         _banner = "Response truncated (finish_reason='length') - model hit max output tokens"
     agent._vprint(f"{agent.log_prefix}⚠️  {_banner}", force=True, diagnostic=True)
@@ -511,6 +552,9 @@ def recover_from_truncation(
             compression_exhausted=True,
             failure=("context_overflow", False),
         )
+
+    if getattr(st.response, "_malformed_tool_args", False):
+        return _retry_malformed_tool_call(st)
 
     _trunc_msg = normalize_response_for_agent(agent, response)
     _trunc_content = getattr(_trunc_msg, "content", None) if _trunc_msg else None
